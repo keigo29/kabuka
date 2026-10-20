@@ -204,6 +204,14 @@ label.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .tpl-body{min-height:220px}
 .phs{display:flex;flex-wrap:wrap;gap:6px}
 a.btn{text-decoration:none}
+body.long .only-short{display:none!important}
+body:not(.long) .only-long{display:none!important}
+.stats.six{grid-template-columns:repeat(3,minmax(0,1fr))}
+.roe-bars{display:flex;flex-direction:column;gap:8px}
+.roe-bars .r{display:grid;grid-template-columns:4.6em minmax(0,1fr) 4.2em;gap:10px;align-items:center;font-size:12px;font-weight:600}
+.roe-bars .bar{height:8px;border-radius:999px;background:var(--soft);position:relative;overflow:hidden}
+.roe-bars .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
+.roe-bars .bar b{position:absolute;top:-2px;bottom:-2px;width:1.5px;background:var(--text);opacity:.45}
 a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
 .phs .chip{background:var(--soft);box-shadow:none}
 </style>
@@ -229,7 +237,7 @@ a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
   <section id="view-predict" class="view" style="display:flex;flex-direction:column;gap:14px">
     <div class="card">
       <div class="row"><h2 id="pTitle">次の営業日の予測</h2><div class="sp"></div>
-        <div class="seg" id="hSeg"><button data-h="1" class="on">1日先</button><button data-h="5">5日先</button></div></div>
+        <div class="seg" id="hSeg"><button data-h="1" class="on">1日先</button><button data-h="5">5日先</button><button data-h="L">長期</button></div></div>
       <div class="dir">
         <div class="badge flat" id="pBadge"></div>
         <div style="min-width:0">
@@ -243,7 +251,22 @@ a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
       <div class="row" id="pTags"></div>
     </div>
 
-    <div class="card">
+    <div class="card only-long">
+      <div class="row"><h2>会社の数字</h2><div class="sp"></div><span class="tag" id="fAsOf"></span></div>
+      <div class="stats six">
+        <div class="stat"><span class="k">ROE</span><span class="v num" id="fRoe">–</span></div>
+        <div class="stat"><span class="k">PER</span><span class="v num" id="fPer">–</span></div>
+        <div class="stat"><span class="k">PBR</span><span class="v num" id="fPbr">–</span></div>
+        <div class="stat"><span class="k">配当利回り</span><span class="v num" id="fDiv">–</span></div>
+        <div class="stat"><span class="k">自己資本比率</span><span class="v num" id="fEq">–</span></div>
+        <div class="stat"><span class="k">業種</span><span class="v" id="fSector" style="font-size:13px">–</span></div>
+      </div>
+      <h2 style="padding-top:4px">ROE の推移（決算期ごと）</h2>
+      <div class="roe-bars" id="fRoeHist"></div>
+      <p class="note" id="fNote"></p>
+    </div>
+
+    <div class="card only-short">
       <h2 id="rgTitle">値動きの幅の目安</h2>
       <div class="range">
         <div class="stat"><span class="k">約68%の確率で入る幅</span><span class="v num" id="rg1">–</span></div>
@@ -257,18 +280,23 @@ a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
         <div class="seg" id="rSeg"><button data-r="63">3か月</button><button data-r="250" class="on">1年</button><button data-r="0">すべて</button></div></div>
       <div class="row"><span class="mid num" id="lastPrice">–</span><span class="tag" id="lastChg">–</span><div class="sp"></div><span class="label num" id="lastDate"></span></div>
       <div class="chart" id="priceChart"></div>
-      <div class="legend"><span><i style="background:var(--text)"></i>終値</span><span><i style="background:var(--sub);opacity:.6"></i>20日平均</span><span><i style="background:var(--sub);opacity:.3"></i>60日平均</span></div>
+      <div class="legend" id="pLegend"></div>
     </div>
   </section>
 
   <!-- 計算式 -->
   <section id="view-rules" class="view" hidden style="flex-direction:column;gap:14px">
-    <div class="card">
-      <h2>予測の計算式</h2>
+    <div class="card only-short">
+      <h2>予測の計算式（1日先・5日先）</h2>
       <div class="formula">スコア ＝ Σ（重み × 合図）</div>
       <p class="note">5つのルールがそれぞれ「上がる合図（＋1）」「下がる合図（−1）」「どちらでもない（0）」を出し、重みをかけて足します。スコアが＋なら上がりそう、−なら下がりそう、0なら様子見です。</p>
     </div>
-    <div class="card">
+    <div class="card only-long">
+      <h2>長く持つ場合の計算式</h2>
+      <div class="formula">長期スコア ＝ Σ（重み × 合図）</div>
+      <p class="note">会社の数字（ROE・PER・PBR・配当・自己資本比率）と長い目で見た株価の流れ、7つのルールで点数を付けます。満点の3割以上なら「長く持つ候補」、−3割以下なら「見送り」、そのあいだは「様子見」です。重みは自分で決めます（ROE は最初から2）。</p>
+    </div>
+    <div class="card only-short">
       <div class="row">
         <div style="flex:1;min-width:0"><div style="font-weight:600">重みを自動で決める</div><div class="label">243通りの重みを過去で全部試し、いちばん当たったものを使います</div></div>
         <label class="switch"><input type="checkbox" id="autoW" aria-label="重みを自動で決める" checked><span></span></label>
@@ -278,7 +306,11 @@ a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
       <div class="row"><h2>ルールと重み</h2><div class="sp"></div><span class="tag" id="wModeTag">自動</span></div>
       <div class="rules" id="ruleList"></div>
     </div>
-    <div class="card">
+    <div class="card only-long">
+      <h2>会社の数字の意味</h2>
+      <p class="note">ROE：当期純利益 ÷ 自己資本。株主のお金でどれだけ稼いだか。<br>ROE の推移：直近の決算期の ROE と、それより前の期の平均との差。<br>PER：株価 ÷ 1株あたり利益。利益の何年分の株価か。<br>PBR：株価 ÷ 1株あたり純資産。<br>配当利回り：直近1年の配当の合計 ÷ 株価。<br>自己資本比率：自己資本 ÷ 総資産。<br>200日平均：直近200営業日の終値の平均。<br>数字は Yahoo Finance の決算データから毎日取り込んでいます。</p>
+    </div>
+    <div class="card only-short">
       <h2>計算に使う指標</h2>
       <p class="note">20日平均：直近20日の終値の平均。<br>MACD：12日と26日の指数平均の差。シグナルはMACDの9日指数平均。<br>RSI（14日）：14日間の上げ幅の合計 ÷（上げ幅＋下げ幅の合計）× 100。<br>ボリンジャーバンド：20日平均 ± 2 × 20日の標準偏差。<br>値動きの幅：終値 × e^(±k × 20日の日々の変動 × √日数)。k＝1で約68%、k＝2で約95%。</p>
     </div>
@@ -286,7 +318,20 @@ a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
 
   <!-- 検証 -->
   <section id="view-test" class="view" hidden style="flex-direction:column;gap:14px">
-    <div class="card">
+    <div class="card only-long">
+      <div class="row"><h2>長期の計算式は過去で試せません</h2></div>
+      <p class="note">会社の数字は年に1回の決算ごとにしか変わらず、取り込めるのも直近4期分ほどです。点数を付けた時点の数字で1年後を答え合わせできるほど回数がないため、正解率は出していません。かわりに、株価の流れのルールだけを試した結果を出します。</p>
+    </div>
+    <div class="card only-long">
+      <div class="row"><h2>200日平均より上の日に買っていたら</h2><div class="sp"></div><span class="tag" id="lvVerdict">–</span></div>
+      <div class="stats">
+        <div class="stat"><span class="k">上の日 → 1年後に上</span><span class="v num" id="lvAbove">–</span></div>
+        <div class="stat"><span class="k">下の日 → 1年後に上</span><span class="v num" id="lvBelow">–</span></div>
+        <div class="stat"><span class="k">どの日でも</span><span class="v num" id="lvAll">–</span></div>
+      </div>
+      <p class="note" id="lvNote"></p>
+    </div>
+    <div class="card only-short">
       <div class="row"><h2 id="tTitle">過去で試した結果</h2><div class="sp"></div><span class="tag" id="tVerdict">–</span></div>
       <div class="stats">
         <div class="stat"><span class="k">計算式の正解率</span><span class="v num" id="sAcc">–</span></div>
@@ -296,13 +341,13 @@ a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
       <p class="note" id="tExplain"></p>
     </div>
 
-    <div class="card">
+    <div class="card only-short">
       <h2>ルールごとの正解率</h2>
       <div class="tbl"><table><thead><tr><th>ルール</th><th>合図の日数</th><th>正解率</th></tr></thead><tbody id="ruleAccBody"></tbody></table></div>
       <p class="note">合図（＋1か−1）を出した日だけで数えています。50%前後なら、そのルールはこの銘柄ではほぼ効いていません。</p>
     </div>
 
-    <div class="card">
+    <div class="card only-short">
       <h2>お金の増え方（手数料込み）</h2>
       <div class="stats">
         <div class="stat"><span class="k">計算式どおり売買</span><span class="v num" id="sStrat">–</span></div>
@@ -318,7 +363,7 @@ a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
       <p class="note">スコアが＋の日だけ株を持ち、ほかの日は持たない、という単純なルールで計算しています。</p>
     </div>
 
-    <div class="card">
+    <div class="card only-short">
       <h2>3か月ごとの正解率</h2>
       <div class="tbl"><table><thead><tr><th>期間</th><th>日数</th><th>正解率</th></tr></thead><tbody id="foldBody"></tbody></table></div>
     </div>
@@ -425,7 +470,7 @@ try{
   const idx=await res.json();
   const got=await Promise.all(idx.stocks.map(async s=>{
     try{const r=await fetch('data/'+encodeURIComponent(s.file),{cache:'no-cache'});if(!r.ok)return null;const d=await r.json();
-      return d.close&&d.close.length>=MIN_DAYS?{id:d.code,name:d.name,unit:d.unit||guessUnit(d.code),dates:d.dates,close:d.close}:null}catch(e){return null}
+      return d.close&&d.close.length>=MIN_DAYS?{id:d.code,name:d.name,unit:d.unit||guessUnit(d.code),dates:d.dates,close:d.close,fund:d.fund||null}:null}catch(e){return null}
   }));
   STOCKS=got.filter(Boolean);
   if(STOCKS.length){SOURCE={live:true,updated:idx.updated}}
@@ -436,7 +481,7 @@ if(!STOCKS.length)STOCKS=SAMPLES();
 function sma(c,k){const o=Array(c.length).fill(null);let s=0;for(let i=0;i<c.length;i++){s+=c[i];if(i>=k)s-=c[i-k];if(i>=k-1)o[i]=s/k}return o}
 function ema(a,k){const o=Array(a.length).fill(null),al=2/(k+1);let e=null;for(let i=0;i<a.length;i++){if(a[i]==null)continue;e=e==null?a[i]:al*a[i]+(1-al)*e;o[i]=e}return o}
 function indicators(c){
-  const n=c.length,ma20=sma(c,20),ma60=sma(c,60),e12=ema(c,12),e26=ema(c,26);
+  const n=c.length,ma20=sma(c,20),ma60=sma(c,60),ma200=sma(c,200),e12=ema(c,12),e26=ema(c,26);
   const macd=c.map((_,i)=>i>=25?e12[i]-e26[i]:null),sig=ema(macd,9);
   const rsi=Array(n).fill(null),sd20=Array(n).fill(null),vol=Array(n).fill(null);
   for(let t=20;t<n;t++){
@@ -444,7 +489,7 @@ function indicators(c){
     let v=0;for(let i=t-19;i<=t;i++)v+=(c[i]-ma20[t])**2;sd20[t]=Math.sqrt(v/20);
     let m=0,rs=[];for(let i=t-19;i<=t;i++){const x=Math.log(c[i]/c[i-1]);rs.push(x);m+=x}m/=20;let q=0;rs.forEach(x=>q+=(x-m)**2);vol[t]=Math.sqrt(q/19);
   }
-  return{ma20,ma60,macd,sig,rsi,sd20,vol};
+  return{ma20,ma60,ma200,macd,sig,rsi,sd20,vol};
 }
 const f0=v=>UNIT==='ドル'?v.toLocaleString('ja-JP',{minimumFractionDigits:2,maximumFractionDigits:2}):v>=1000?Math.round(v).toLocaleString('ja-JP'):v.toLocaleString('ja-JP',{maximumFractionDigits:1});
 const RULES=[
@@ -466,17 +511,64 @@ const RULES=[
 ];
 const KEYS=RULES.map(r=>r.key);
 
+/* ---------- 長く持つ場合のルール（会社の数字＋長い流れ） ---------- */
+const pctN=(v,d=1)=>v==null?'–':(v*100).toFixed(d)+'%';
+const xN=v=>v==null?'–':v.toFixed(2)+'倍';
+function roeTrend(F){const h=(F&&F.roeHist||[]).filter(x=>x.roe!=null);if(h.length<2)return null;const prev=h.slice(0,-1),avg=prev.reduce((a,x)=>a+x.roe,0)/prev.length;return{last:h[h.length-1].roe,avg,diff:h[h.length-1].roe-avg}}
+const SECTOR_JA={'Technology':'テクノロジー','Consumer Cyclical':'一般消費財','Consumer Defensive':'生活必需品','Financial Services':'金融','Communication Services':'通信・メディア','Healthcare':'ヘルスケア','Industrials':'資本財・産業','Energy':'エネルギー','Basic Materials':'素材','Real Estate':'不動産','Utilities':'公益'};
+const secJa=F=>F&&F.sector?(SECTOR_JA[F.sector]||F.sector):null;
+const isFin=F=>!!(F&&F.sector&&/financial/i.test(F.sector));
+const NOF='データなし（指数や、決算の数字が取れない銘柄）';
+const LRULES=[
+  {key:'roe',name:'ROE の水準',why:'株主のお金で稼ぐ力。10%以上なら合格、5%未満なら弱い',
+    sig:(ds,F)=>!F||F.roe==null?0:F.roe>=.10?1:F.roe<.05?-1:0,
+    show:(ds,F)=>!F||F.roe==null?NOF:`ROE ${pctN(F.roe)}（10%以上で＋1、5%未満で−1）`},
+  {key:'roeTrend',name:'ROE の推移',why:'稼ぐ力が上向きか。直近の決算期を、それより前の期の平均と比べる',
+    sig:(ds,F)=>{const r=roeTrend(F);return!r?0:r.diff>=.02?1:r.diff<=-.02?-1:0},
+    show:(ds,F)=>{const r=roeTrend(F);return!r?NOF:`直近 ${pctN(r.last)} ／ 前の平均 ${pctN(r.avg)}（2ポイント以上の差で±1）`}},
+  {key:'per',name:'PER（株価収益率）',why:'利益の何年分の株価か。低いほど割安。赤字はマイナス',
+    sig:(ds,F)=>!F||F.per==null?0:F.per<=0?-1:F.per<=15?1:F.per>30?-1:0,
+    show:(ds,F)=>!F||F.per==null?NOF:`PER ${xN(F.per)}（15倍以下で＋1、30倍超か赤字で−1）`},
+  {key:'pbr',name:'PBR（株価純資産倍率）',why:'会社の純資産の何倍の株価か。1倍割れは割安',
+    sig:(ds,F)=>!F||F.pbr==null?0:F.pbr<1?1:F.pbr>5?-1:0,
+    show:(ds,F)=>!F||F.pbr==null?NOF:`PBR ${xN(F.pbr)}（1倍未満で＋1、5倍超で−1）`},
+  {key:'div',name:'配当利回り',why:'持っているだけで入るお金。配当がなくても減点はしない',
+    sig:(ds,F)=>!F||F.divYield==null?0:F.divYield>=.03?1:0,
+    show:(ds,F)=>!F||F.divYield==null?NOF:`配当利回り ${pctN(F.divYield,2)}（3%以上で＋1）`},
+  {key:'eq',name:'自己資本比率',why:'借金に頼りすぎていないか。ROE が借金で高く見えていないかの確認にもなる',
+    sig:(ds,F)=>!F||F.eqRatio==null||isFin(F)?0:F.eqRatio>=.4?1:F.eqRatio<.2?-1:0,
+    show:(ds,F)=>!F||F.eqRatio==null?NOF:isFin(F)?`自己資本比率 ${pctN(F.eqRatio)}（銀行などの金融は預金を預かる仕組み上低く出るので使いません）`:`自己資本比率 ${pctN(F.eqRatio)}（40%以上で＋1、20%未満で−1）`},
+  {key:'ma200',name:'終値と200日平均',why:'長い目で見た株価の流れ。平均より上なら上向き',
+    sig:(ds,F)=>{const c=ds.close,t=c.length-1,m=ind(ds).ma200[t];return m==null?0:c[t]>m?1:c[t]<m?-1:0},
+    show:(ds,F)=>{const c=ds.close,t=c.length-1,m=ind(ds).ma200[t];return m==null?'200日分のデータがありません':`終値 ${f0(c[t])} ／ 200日平均 ${f0(m)}`}}
+];
+const defWL={roe:2,roeTrend:1,per:1,pbr:1,div:1,eq:1,ma200:1};
+function longScore(ds){
+  const F=ds.fund,parts=LRULES.map(r=>({r,s:r.sig(ds,F),w:state.wl[r.key]}));
+  const score=parts.reduce((a,p)=>a+p.w*p.s,0),max=parts.reduce((a,p)=>a+p.w,0);
+  const ratio=max?score/max:0,judge=ratio>=.3?'長く持つ候補':ratio<=-.3?'見送り':'様子見';
+  return{parts,score,max,judge,dir:ratio>=.3?'up':ratio<=-.3?'down':'flat'};
+}
+// 200日平均より上の日に買って1年持ったら上がっていたか
+function trendCheck(ds){
+  return once('tc|'+ds.id,()=>{const c=ds.close,m=ind(ds).ma200,n=c.length,H=250;let a=0,au=0,b=0,bu=0,all=0,allu=0;
+    for(let t=199;t+H<n;t++){const up=c[t+H]>c[t];all++;if(up)allu++;if(c[t]>m[t]){a++;if(up)au++}else{b++;if(up)bu++}}
+    return{a,au,b,bu,all,allu,from:ds.dates[199],to:ds.dates[Math.max(199,n-1-H)]}});
+}
+
 /* ---------- 状態と保存 ---------- */
 let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||'{}')||{}}catch(e){}
 const defW={trend:1,cross:1,macd:1,rsi:1,bb:1};
 const state={
   cur:saved.cur,h:saved.h===5?5:1,range:250,
   fee:typeof saved.fee==='number'?saved.fee:0.1,tab:'predict',
-  auto:saved.auto!==false,w:Object.assign({},defW,saved.w||{})
+  auto:saved.auto!==false,w:Object.assign({},defW,saved.w||{}),
+  long:saved.long===true,wl:null
 };
 if(!STOCKS.some(d=>d.id===state.cur))state.cur=STOCKS[0].id;
-function persist(){try{localStorage.setItem(STORE,JSON.stringify({cur:state.cur,h:state.h,fee:state.fee,auto:state.auto,w:state.w}))}catch(e){}}
+function persist(){try{localStorage.setItem(STORE,JSON.stringify({cur:state.cur,h:state.h,fee:state.fee,auto:state.auto,w:state.w,long:state.long,wl:state.wl}))}catch(e){}}
 const cur=()=>STOCKS.find(d=>d.id===state.cur)||STOCKS[0];
+state.wl=Object.assign({},defWL,saved.wl||{});
 
 const memo=new Map();
 const once=(k,f)=>{if(!memo.has(k))memo.set(k,f());return memo.get(k)};
@@ -561,7 +653,34 @@ function renderChips(){
   const t=$('#srcTag');
   if(SOURCE.live){t.className='tag ok';t.textContent=fmtUpd(SOURCE.updated)+' 更新'}else{t.className='tag';t.textContent='サンプルのデータ'}
 }
+function renderPredictLong(){
+  const ds=cur(),c=ds.close,n=c.length,I=ind(ds),t=n-1,F=ds.fund,L=longScore(ds);
+  $('#pTitle').textContent='長く持つ場合の判定';
+  $('#pBadge').className='badge '+L.dir;$('#pBadge').innerHTML=ICON[L.dir];
+  $('#pScore').textContent=sNum(L.score)+' / '+L.max;
+  $('#pSub').textContent='長期スコア　'+L.judge;
+  $('#pMeter').style.width=L.max?((L.score+L.max)/(2*L.max)*100).toFixed(1)+'%':'50%';
+  $('#pMin').textContent='−'+L.max;$('#pMax').textContent='＋'+L.max;
+  const used=L.parts.filter(p=>p.w>0);
+  $('#pFormula').innerHTML=used.length?used.map(p=>`${p.w}×<span class="${p.s>0?'up-t':p.s<0?'down-t':''}">(${sNum(p.s)})</span>`).join(' ＋ ')+` ＝ <b>${sNum(L.score)}</b>`:'重みがすべて0です。計算式タブで重みを付けてください。';
+  $('#pTags').innerHTML=`<span class="tag">1年以上持つ前提</span>${F?`<span class="tag">決算の数字 ${jd(F.asOf)} 取り込み</span>`:'<span class="tag warn">会社の数字なし</span>'}`;
+  // 会社の数字
+  $('#fRoe').textContent=pctN(F&&F.roe);$('#fPer').textContent=xN(F&&F.per);$('#fPbr').textContent=xN(F&&F.pbr);
+  $('#fDiv').textContent=pctN(F&&F.divYield,2);$('#fEq').textContent=pctN(F&&F.eqRatio);$('#fSector').textContent=secJa(F)||'–';
+  $('#fAsOf').textContent=F?jd(F.asOf)+' 時点':'なし';
+  const hist=(F&&F.roeHist||[]).filter(x=>x.roe!=null),mx=Math.max(.2,...hist.map(x=>Math.abs(x.roe)));
+  $('#fRoeHist').innerHTML=hist.length?hist.map(x=>{const v=x.roe,w=Math.min(100,Math.abs(v)/mx*100);return`<div class="r"><span class="num">${x.end.replace('-','/')}</span><span class="bar"><i style="width:${w.toFixed(1)}%;background:${v>=.1?'var(--ok)':v<.05?'var(--danger)':'var(--warn)'}"></i><b style="left:${(Math.min(1,.1/mx)*100).toFixed(1)}%"></b></span><span class="num" style="text-align:right">${pctN(v)}</span></div>`}).join(''):'<p class="note">決算の数字がありません。</p>';
+  $('#fNote').textContent=F?`縦の線が ROE 10% の目安です。${isFin(F)?'銀行などの金融は自己資本比率が低く出る業種なので、そのルールは使っていません。':''}${F.roe!=null&&F.roe>.5?'ROE がとても高いときは、自社株買いや借金で自己資本が小さくなっていることがあります。PBR と自己資本比率も一緒に見てください。':''}`:'指数や一部の銘柄は、会社の数字がないため株価の流れだけで判定します。';
+  // 株価
+  $('#lastPrice').textContent=f0(c[t])+' '+UNIT;
+  const ch=c[t]/c[t-1]-1;$('#lastChg').className='tag '+(ch>=0?'ok':'danger');$('#lastChg').textContent=sgn(ch);
+  $('#lastDate').textContent=jd(ds.dates[t])+' 時点';
+  const k=state.range?Math.min(state.range,n):n,from=n-k;
+  line($('#priceChart'),[{v:c.slice(from),color:'var(--text)',area:true},{v:I.ma200.slice(from),color:'var(--sub)',op:.6,w:1.5}],ds.dates.slice(from),f0);
+  $('#pLegend').innerHTML='<span><i style="background:var(--text)"></i>終値</span><span><i style="background:var(--sub);opacity:.6"></i>200日平均</span>';
+}
 function renderPredict(){
+  if(state.long)return renderPredictLong();
   const ds=cur(),c=ds.close,n=c.length,h=state.h,I=ind(ds),t=n-1,w=liveW(ds,h);
   const sc=scoreAt(ds,t,w),bt=backtest(ds,h,state.fee);
   const dir=sc.score>0?'up':sc.score<0?'down':'flat';
@@ -584,8 +703,16 @@ function renderPredict(){
   $('#lastDate').textContent=jd(ds.dates[t])+' 時点';
   const k=state.range?Math.min(state.range,n):n,from=n-k;
   line($('#priceChart'),[{v:c.slice(from),color:'var(--text)',area:true},{v:I.ma20.slice(from),color:'var(--sub)',op:.6,w:1.5},{v:I.ma60.slice(from),color:'var(--sub)',op:.3,w:1.5}],ds.dates.slice(from),f0);
+  $('#pLegend').innerHTML='<span><i style="background:var(--text)"></i>終値</span><span><i style="background:var(--sub);opacity:.6"></i>20日平均</span><span><i style="background:var(--sub);opacity:.3"></i>60日平均</span>';
 }
 function renderRules(){
+  if(state.long){
+    const ds=cur(),L=longScore(ds);
+    $('#wModeTag').textContent='長期・手動';
+    $('#ruleList').innerHTML=L.parts.map(p=>`<div class="rule"><span class="nm">${p.r.name}</span>${sigTag(p.s).replace('上がる合図','良い').replace('下がる合図','悪い')}<span class="ex">${p.r.why}<br>いま：${esc(p.r.show(ds,ds.fund))}</span><div class="ctl"><span class="label">重み</span><div class="seg" data-key="${p.r.key}">${[0,1,2].map(v=>`<button data-v="${v}" class="${v===p.w?'on':''}">${v}</button>`).join('')}</div><div class="sp"></div><span class="label num">${p.w}×(${sNum(p.s)}) ＝ ${sNum(p.w*p.s)}</span></div></div>`).join('')
+      +`<div class="rule"><span class="nm">重みを元に戻す</span><button class="btn" id="resetW">最初の重みにする</button></div>`;
+    return;
+  }
   const ds=cur(),t=ds.close.length-1,I=ind(ds),w=liveW(ds,state.h),S=sigs(ds)[t];
   $('#autoW').checked=state.auto;
   $('#wModeTag').textContent=state.auto?`自動（${state.h}日先用）`:'手動';
@@ -598,6 +725,16 @@ function renderRules(){
                :`<div class="rule"><span class="nm">重みを元に戻す</span><button class="btn" id="resetW">すべて1にする</button></div>`);
 }
 function renderTest(){
+  if(state.long){
+    const ds=cur(),r=trendCheck(ds),v=$('#lvVerdict');
+    const pa=r.a?r.au/r.a:null,pb=r.b?r.bu/r.b:null,pl=r.all?r.allu/r.all:null;
+    $('#lvAbove').textContent=pa==null?'–':pct(pa,0);$('#lvBelow').textContent=pb==null?'–':pct(pb,0);$('#lvAll').textContent=pl==null?'–':pct(pl,0);
+    if(!r.all){v.className='tag';v.textContent='データ不足';$('#lvNote').textContent='1年後を答え合わせするには、少なくとも450営業日分の株価が必要です。';return}
+    const d=pa!=null&&pb!=null?pa-pb:0;
+    v.className='tag '+(d>.05?'ok':d<-.05?'danger':'');v.textContent=d>.05?'流れのルールは効いています':d<-.05?'この銘柄では逆に出ています':'差はほとんどありません';
+    $('#lvNote').textContent=`${jd(r.from)}〜${jd(r.to)} の ${r.all} 日について、その日に買って1年（250営業日）持ったら株価が上がっていたかを数えました。200日平均より上の日は ${r.a} 日、下の日は ${r.b} 日です。期間が重なっているので、実際に独立した試しの回数はずっと少ないと考えてください。`;
+    return;
+  }
   const ds=cur(),bt=backtest(ds,state.h,state.fee);
   $('#tTitle').textContent=(state.h===1?'1日先':'5日先')+'を過去で試した結果';
   $('#sAcc').textContent=pct(bt.acc);$('#sBase').textContent=pct(bt.base);$('#sSkip').textContent=bt.skip+'日';
@@ -633,7 +770,8 @@ function render(){
   renderChips();
   document.querySelectorAll('.view').forEach(v=>{const on=v.id==='view-'+state.tab;v.hidden=!on;if(on)v.style.display='flex'});
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===state.tab));
-  document.querySelectorAll('#hSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.h===state.h));
+  document.body.classList.toggle('long',state.long);
+  document.querySelectorAll('#hSeg button').forEach(b=>b.classList.toggle('on',state.long?b.dataset.h==='L':(!state.long&&+b.dataset.h===state.h)));
   document.querySelectorAll('#rSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.r===state.range));
   ({predict:renderPredict,rules:renderRules,test:renderTest,ai:renderAI,data:renderData})[state.tab]();
 }
@@ -653,6 +791,12 @@ const DEF_TPL=[
 - RSI(14)：{{RSI}}
 - MACD：{{MACD}}／シグナル：{{シグナル}}
 - ボリンジャーバンド(±2σ)：{{ボリンジャー下}}〜{{ボリンジャー上}} {{単位}}
+
+## 会社の数字（{{決算の時点}} 取り込み）
+- ROE：{{ROE}}（決算期ごと：{{ROEの推移}}）
+- PER：{{PER}}／PBR：{{PBR}}／配当利回り：{{配当利回り}}
+- 自己資本比率：{{自己資本比率}}
+- 長く持つ場合の計算式：{{長期スコア}}（{{長期の判定}}）
 
 ## 計算式による予測（{{予測日数}}）
 - スコア：{{スコア}}（{{予測}}）
@@ -688,27 +832,36 @@ const DEF_TPL=[
 - 買う価格・利益を確定する価格・損切りする価格を、それぞれ数字で
 - いまは待つべきなら、何が起きたら買うか（例：RSI が○を下回ったら）
 - この計画のいちばん大きなリスクを1つ`},
-{id:'t3',name:'長く持つか',body:`{{銘柄名}}（{{コード}}）を1年以上持つ候補として考えています。
+{id:'t3',name:'長く持つか',body:`{{銘柄名}}（{{コード}}・{{業種}}）を1年以上持つ候補として考えています。
 
-調べられる場合は、最新の業績・PER・PBR・配当利回り・直近の決算の内容とニュースを調べ、そのうえで判断してください。調べられない場合は、確かめるべき項目を挙げてください。
+## 会社の数字（{{決算の時点}} 取り込み）
+- ROE：{{ROE}}
+- ROE の推移（決算期ごと）：{{ROEの推移}}
+- PER：{{PER}}／PBR：{{PBR}}
+- 配当利回り：{{配当利回り}}
+- 自己資本比率：{{自己資本比率}}
 
 ## 株価の状況（{{日付}} 時点）
 - 終値：{{終値}} {{単位}}
 - 1年：{{1年騰落}}（高値 {{1年高値}} {{単位}}／安値 {{1年安値}} {{単位}}）
-- 3か月：{{3か月騰落}}
-- 60日平均：{{60日平均}} {{単位}}
+- 200日平均：{{200日平均}} {{単位}}
 - RSI(14)：{{RSI}}
+
+## 長く持つ場合の計算式
+- 長期スコア：{{長期スコア}}（{{長期の判定}}）
+{{長期の合図一覧}}
 
 ## 私の状況
 {{メモ}}
 
 ## お願い
-1. 長く持つ株としての良いところと心配なところを、それぞれ3つまで
+調べられる場合は、最新の決算・業績の見通し・ニュースも調べてから判断してください。
+1. 長く持つ株としての良いところと心配なところを、それぞれ3つまで。ROE が高い場合は、それが借金や自社株買いで自己資本が小さいせいではないかも見てください
 2. 結論を「買う」「様子見」「買わない」で
 3. 買う場合、一度に買うか、何回かに分けて買うか。分けるならその目安
 4. 持ったあと、売ることを考えるべき出来事`}
 ];
-const PH=['銘柄名','コード','日付','終値','単位','前日比','1か月騰落','3か月騰落','1年騰落','1年高値','1年安値','20日平均','60日平均','RSI','MACD','シグナル','ボリンジャー上','ボリンジャー下','予測日数','スコア','予測','合図一覧','正解率','いつも上がる正解率','値幅68','値幅95','直近20日終値','メモ'];
+const PH=['銘柄名','コード','日付','終値','単位','前日比','1か月騰落','3か月騰落','1年騰落','1年高値','1年安値','20日平均','60日平均','RSI','MACD','シグナル','ボリンジャー上','ボリンジャー下','予測日数','スコア','予測','合図一覧','正解率','いつも上がる正解率','値幅68','値幅95','直近20日終値','ROE','ROEの推移','PER','PBR','配当利回り','自己資本比率','業種','決算の時点','200日平均','長期スコア','長期の判定','長期の合図一覧','メモ'];
 let tsaved={};try{tsaved=JSON.parse(localStorage.getItem(TPL_STORE)||'{}')||{}}catch(e){}
 const ai={
   tpls:Array.isArray(tsaved.tpls)&&tsaved.tpls.length?tsaved.tpls:DEF_TPL.map(t=>({...t})),
@@ -716,6 +869,9 @@ const ai={
   unitReady:true
 };
 if(!tsaved.unitReady&&Array.isArray(tsaved.tpls)){ai.tpls.forEach(t=>{t.body=t.body.replace(/(\{\{[^}]+\}\}) 円/g,'$1 {{単位}}')});try{localStorage.setItem(TPL_STORE,JSON.stringify(ai))}catch(e){}}
+{const OLD={t1:2212310535,t3:147946802},hs=x=>{let v=5381;for(let i=0;i<x.length;i++)v=((v*33)^x.charCodeAt(i))>>>0;return v};
+ let ch=false;ai.tpls.forEach(t=>{if(OLD[t.id]&&hs(t.body)===OLD[t.id]){t.body=DEF_TPL.find(d=>d.id===t.id).body;ch=true}});
+ if(ch){try{localStorage.setItem(TPL_STORE,JSON.stringify(ai))}catch(e){}}}
 function tplPersist(){try{localStorage.setItem(TPL_STORE,JSON.stringify(ai))}catch(e){}}
 const perOf=id=>ai.per[id]||(ai.per[id]={tpl:ai.tpls[0].id,memo:''});
 const tplOf=id=>ai.tpls.find(t=>t.id===perOf(id).tpl)||ai.tpls[0];
@@ -729,6 +885,7 @@ function promptValues(ds){
   const lines=sc.parts.filter(p=>p.w>0).map(p=>`  - ${p.r.name}：${p.s>0?'上がる合図':p.s<0?'下がる合図':'合図なし'}（重み ${p.w}）`).join('\n');
   const last20=c.slice(-20).map((v,i)=>ds.dates[n-20+i].slice(5).replace('-','/')+' '+f0(v)).join('、');
   const memo=(perOf(ds.id).memo||'').trim();
+  const F=ds.fund,L=longScore(ds),rh=(F&&F.roeHist||[]).filter(x=>x.roe!=null).map(x=>`${x.end.replace('-','/')} ${pctN(x.roe)}`).join(' → ');
   return{
     '銘柄名':ds.name,'単位':UNIT,'コード':SOURCE.live?ds.id:'サンプル','日付':jd(ds.dates[t]),
     '終値':f0(c[t]),'前日比':sgn(c[t]/c[t-1]-1),'1か月騰落':back(21),'3か月騰落':back(63),'1年騰落':back(250),
@@ -738,7 +895,12 @@ function promptValues(ds){
     '予測日数':h===1?'次の営業日':'5営業日先','スコア':`${sNum(sc.score)} / ${sc.max}`,'予測':dir,
     '合図一覧':lines||'  - （使っているルールはありません）','正解率':pct(bt.acc),'いつも上がる正解率':pct(bt.base),
     '値幅68':`${f0(c[t]*Math.exp(-sd))}〜${f0(c[t]*Math.exp(sd))}`,'値幅95':`${f0(c[t]*Math.exp(-2*sd))}〜${f0(c[t]*Math.exp(2*sd))}`,
-    '直近20日終値':last20,'メモ':memo||'とくになし'
+    '直近20日終値':last20,'メモ':memo||'とくになし',
+    'ROE':F&&F.roe!=null?pctN(F.roe):'データなし','ROEの推移':rh||'データなし','PER':F&&F.per!=null?xN(F.per):'データなし','PBR':F&&F.pbr!=null?xN(F.pbr):'データなし',
+    '配当利回り':F&&F.divYield!=null?pctN(F.divYield,2):'データなし','自己資本比率':F&&F.eqRatio!=null?pctN(F.eqRatio)+(isFin(F)?'（金融業）':''):'データなし',
+    '業種':secJa(F)||'業種不明','決算の時点':F?jd(F.asOf):'データなし','200日平均':I.ma200[t]!=null?f0(I.ma200[t]):'データなし',
+    '長期スコア':`${sNum(L.score)} / ${L.max}`,'長期の判定':L.judge,
+    '長期の合図一覧':L.parts.filter(p=>p.w>0).map(p=>`  - ${p.r.name}：${p.s>0?'良い':p.s<0?'悪い':'どちらでもない'}（重み ${p.w}）`).join('\n')||'  - （使っているルールはありません）'
   };
 }
 const fillTpl=(body,v)=>body.replace(/\{\{\s*(.+?)\s*\}\}/g,(m,k)=>k in v?v[k]:m);
@@ -827,13 +989,13 @@ let tt;function toast(msg){document.querySelectorAll('.toast').forEach(t=>t.remo
 /* ---------- 操作 ---------- */
 $('#chips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;state.cur=b.dataset.id;persist();render()});
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;state.tab=b.dataset.tab;render();window.scrollTo({top:0})});
-$('#hSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;state.h=+b.dataset.h;persist();render()});
+$('#hSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.h==='L')state.long=true;else{state.long=false;state.h=+b.dataset.h}persist();render()});
 $('#rSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;state.range=+b.dataset.r;render()});
 $('#autoW').addEventListener('change',e=>{state.auto=e.target.checked;persist();render();toast(state.auto?'重みを自動で決めます':'重みを手動にしました')});
 $('#ruleList').addEventListener('click',e=>{
-  if(e.target.closest('#resetW')){state.w=Object.assign({},defW);persist();render();toast('重みをすべて1にしました');return}
+  if(e.target.closest('#resetW')){if(state.long)state.wl=Object.assign({},defWL);else state.w=Object.assign({},defW);persist();render();toast('重みを最初に戻しました');return}
   const b=e.target.closest('.seg[data-key] button');if(!b)return;
-  state.w[b.parentElement.dataset.key]=+b.dataset.v;persist();render();
+  (state.long?state.wl:state.w)[b.parentElement.dataset.key]=+b.dataset.v;persist();render();
 });
 $('#fee').value=state.fee;
 $('#fee').addEventListener('change',e=>{const v=parseFloat(e.target.value);state.fee=isFinite(v)&&v>=0?Math.min(v,2):0.1;e.target.value=state.fee;persist();render()});
