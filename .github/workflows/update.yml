@@ -1,0 +1,55 @@
+name: 株価を更新して公開
+
+on:
+  schedule:
+    - cron: "40 7 * * 1-5"   # 平日 16:40（日本時間）。GitHub の都合で数十分遅れることがあります
+  push:
+    branches: [main]
+  workflow_dispatch:          # Actions の画面から手で動かすこともできる
+
+permissions:
+  contents: write   # 取った株価をリポジトリに保存する
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: yfinance を入れる
+        run: pip install -U yfinance
+
+      - name: 株価を取る
+        run: python fetch.py
+
+      # データをコミットしておくと、リポジトリが「動いている」扱いになり、
+      # 60日で定期実行が止まる GitHub の仕組みにかからない
+      - name: 株価を保存する
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/data
+          git diff --cached --quiet || git commit -m "株価を更新 $(TZ=Asia/Tokyo date +%F)"
+          git push
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
