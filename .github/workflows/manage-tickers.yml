@@ -1,0 +1,61 @@
+name: 銘柄を追加・削除
+
+# アプリの「データ」画面から開く issue（タイトルが「銘柄を追加」「銘柄を削除」）で動く。
+# リポジトリの持ち主が開いた issue だけを受け付ける。
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: tickers
+  cancel-in-progress: false
+
+jobs:
+  manage:
+    if: >-
+      github.event.issue.user.login == github.repository_owner &&
+      (startsWith(github.event.issue.title, '銘柄を追加') || startsWith(github.event.issue.title, '銘柄を削除'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: yfinance を入れる
+        run: pip install -U yfinance
+
+      - name: tickers.json を書きかえる
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: python manage_tickers.py
+
+      - name: 保存して、株価の取り込みと公開を動かす
+        if: hashFiles('changed') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tickers.json
+          git commit -m "${ISSUE_TITLE}（#${ISSUE_NUMBER}）"
+          git push
+          gh workflow run update.yml --ref main
+
+      - name: 結果を返して閉じる
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f result.md ]; then msg="$(cat result.md)"; else msg="うまく処理できませんでした。Actions のログを確認してください。"; fi
+          gh issue comment ${{ github.event.issue.number }} --body "$msg"
+          gh issue close ${{ github.event.issue.number }}

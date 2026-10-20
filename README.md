@@ -30,7 +30,15 @@
 
 ## 銘柄を増やす・減らす
 
-`tickers.json` を書きかえて push するだけです。push すると自動で取り直して公開します。
+アプリの「データ」画面でできます。
+
+1. コード（日本株は `7203` のような4けた、米国株は `AAPL` のようなティッカー）と名前を入れて「GitHub で追加する」
+2. GitHub の画面が開くので「Create」を押す
+3. GitHub Actions が株価があるか確かめてから `tickers.json` に足し、株価を取り込んで公開します（2〜3分）
+
+削除は一覧のゴミ箱ボタンから同じ流れです。依頼は GitHub の issue として届き、結果がコメントで返って自動で閉じます。リポジトリの持ち主が開いた issue だけを受け付けるので、ほかの人が勝手に銘柄を変えることはできません。
+
+`tickers.json` を直接書きかえて push しても同じように反映されます。
 
 ```json
 { "code": "6758.T", "name": "ソニーグループ" }
@@ -57,6 +65,7 @@
 | `site/sw.js`・`site/manifest.webmanifest`・`site/icon-*.png` | ホーム画面に置くため |
 | `fetch.py` | 株価を取って `site/data/` に保存する |
 | `tickers.json` | 取る銘柄の一覧 |
+| `manage_tickers.py`・`.github/workflows/manage-tickers.yml` | アプリからの追加・削除の依頼を処理する |
 | `.github/workflows/update.yml` | 毎日の自動実行と公開 |
 
 手元で試すときは `pip install yfinance` → `python fetch.py` → `cd site && python -m http.server` で `http://localhost:8000` を開きます。

@@ -203,6 +203,8 @@ label.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .dialog.wide{width:min(560px, 100vw - 40px);max-height:calc(100dvh - 40px);overflow:auto}
 .tpl-body{min-height:220px}
 .phs{display:flex;flex-wrap:wrap;gap:6px}
+a.btn{text-decoration:none}
+a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
 .phs .chip{background:var(--soft);box-shadow:none}
 </style>
 <meta name="theme-color" content="#f3f4f5" media="(prefers-color-scheme: light)">
@@ -352,6 +354,14 @@ label.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
       <div class="row"><h2>銘柄</h2><div class="sp"></div><span class="label num" id="updAt"></span></div>
       <div class="list" id="dsList"></div>
     </div>
+    <div class="card" id="addCard" hidden>
+      <h2>銘柄を追加</h2>
+      <div class="field"><label class="label" for="addCode">コード</label><input type="text" id="addCode" placeholder="例：7203（日本株）、AAPL（米国株）" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label class="label" for="addName">アプリに出す名前</label><input type="text" id="addName" placeholder="例：トヨタ自動車" autocomplete="off"></div>
+      <p class="note" id="addHint">日本株は証券コード4けた、米国株はティッカー、指数は ^GSPC のように入れてください。</p>
+      <div class="row"><div class="sp"></div><a class="btn primary" id="addGo" target="_blank" rel="noopener" aria-disabled="true">GitHub で追加する</a></div>
+      <p class="note">GitHub の画面が開くので、「Create」を押してください。株価があるか確かめてから追加し、2〜3分でこの画面に出ます。結果は GitHub の通知でも届きます。</p>
+    </div>
     <div class="card">
       <h2>株価の更新</h2>
       <p class="note" id="srcNote"></p>
@@ -380,7 +390,8 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const ICON={
   up:'<svg class="i" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>',
   down:'<svg class="i" viewBox="0 0 24 24"><path d="m7 7 10 10"/><path d="M17 7v10H7"/></svg>',
-  flat:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>'
+  flat:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
+  trash:'<svg class="i" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>'
 };
 const PALETTE=['#005cff','#00c230','#ff5a00','#8600ff','#1fb8cc','#f2280d','#ffae00','#717680'];
 const STORE='kabu-yosoku-v3';
@@ -609,9 +620,12 @@ function renderTest(){
 }
 function renderData(){
   $('#updAt').textContent=SOURCE.live?fmtUpd(SOURCE.updated)+' 更新':'';
-  $('#dsList').innerHTML=STOCKS.map((d,i)=>`<div class="it"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${PALETTE[i%PALETTE.length]}"></span><span class="nm">${esc(d.name)}</span><span class="s num">${jd(d.dates[d.dates.length-1])} まで</span></div>`).join('');
+  const canEdit=!!(REPO&&SOURCE.live&&STOCKS.length>1);
+  $('#dsList').innerHTML=STOCKS.map((d,i)=>`<div class="it"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${PALETTE[i%PALETTE.length]}"></span><span class="nm">${esc(d.name)}</span><span class="s num">${esc(d.unit||'')}・${jd(d.dates[d.dates.length-1])} まで</span>${canEdit?`<button class="btn icon danger" data-del="${esc(d.id)}" aria-label="${esc(d.name)}を削除">${ICON.trash}</button>`:''}</div>`).join('');
+  $('#addCard').hidden=!(REPO&&SOURCE.live);
+  updateAdd();
   $('#srcNote').textContent=SOURCE.live
-    ?'日本株は平日の16時40分ごろ、米国株は米国の市場が閉まったあとの朝7時ごろに、自動で最新の株価を取り込みます。銘柄を増やすときは、リポジトリの tickers.json に1行足してください（日本株は {"code": "6758.T", "name": "ソニーグループ"}、米国株は {"code": "AAPL", "name": "アップル"}）。'
+    ?'日本株は平日の16時40分ごろ、米国株は米国の市場が閉まったあとの朝7時ごろに、自動で最新の株価を取り込みます。銘柄は上の「銘柄を追加」から増やせます。'
     :'株価のデータが見つからないため、架空のサンプルを表示しています。GitHub Pages に置くと、毎日自動で取り込んだ実際の株価で動きます。';
 }
 function render(){
@@ -779,6 +793,32 @@ $('#aiCopy').addEventListener('click',()=>{
   const ta=$('#aiOut'),text=ta.value;
   const fallback=()=>{ta.focus();ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(e){}toast(ok?'コピーしました':'選んだ状態にしました。長押しでコピーしてください')};
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(()=>toast('コピーしました'),fallback)}else fallback();
+});
+
+/* ---------- 銘柄の追加・削除（GitHub の issue で依頼する） ---------- */
+const REPO=(()=>{const m=location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i);if(!m)return null;const seg=location.pathname.split('/').filter(Boolean)[0];return seg?`${m[1]}/${seg}`:`${m[1]}/${m[1]}.github.io`})();
+const normCode=v=>{v=v.trim().toUpperCase();return /^\d{3}[0-9A-Z]$/.test(v)?v+'.T':v};
+const issueUrl=(title,body)=>`https://github.com/${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+function updateAdd(){
+  const a=$('#addGo'),code=normCode($('#addCode').value),name=$('#addName').value.trim().slice(0,40),h=$('#addHint');
+  let ok=false;
+  if(!code){h.textContent='日本株は証券コード4けた、米国株はティッカー、指数は ^GSPC のように入れてください。';h.style.color=''}
+  else if(!/^[\^A-Z0-9.\-=]{1,20}$/.test(code)){h.textContent='使えない文字が入っています。英数字と . ^ - だけにしてください。';h.style.color='var(--danger)'}
+  else if(STOCKS.some(d=>d.id.toUpperCase()===code)){h.textContent=`${code} はすでに一覧にあります。`;h.style.color='var(--danger)'}
+  else{h.textContent=`${code}（${guessUnit(code)}）として追加します。`;h.style.color='';ok=true}
+  a.setAttribute('aria-disabled',ok?'false':'true');
+  if(ok&&REPO)a.href=issueUrl(`銘柄を追加: ${code}`,`code: ${code}\nname: ${name||code}\n\n（このまま「Create」を押してください。株価を確かめてから自動で追加します）`);else a.removeAttribute('href');
+}
+$('#addCode').addEventListener('input',updateAdd);
+$('#addName').addEventListener('input',updateAdd);
+$('#addGo').addEventListener('click',()=>{if($('#addGo').getAttribute('aria-disabled')==='true')return;setTimeout(()=>{$('#addCode').value='';$('#addName').value='';updateAdd()},500);toast('GitHub で「Create」を押してください')});
+$('#dsList').addEventListener('click',e=>{
+  const b=e.target.closest('[data-del]');if(!b)return;const d=STOCKS.find(x=>x.id===b.dataset.del);if(!d)return;
+  const url=issueUrl(`銘柄を削除: ${d.id}`,`code: ${d.id}\n\n（このまま「Create」を押してください。自動で一覧から外します）`);
+  $('#layer').innerHTML=`<div class="backdrop" id="bd"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgT"><h3 id="dlgT">「${esc(d.name)}」を削除しますか？</h3><p class="note">GitHub の画面が開くので「Create」を押すと、取り込む銘柄の一覧から外れます。2〜3分でこの画面からも消えます。この銘柄のメモは端末に残ります。</p><div class="row"><div class="sp"></div><button class="btn" id="dlgNo">キャンセル</button><a class="btn danger" id="dlgYes" href="${esc(url)}" target="_blank" rel="noopener">GitHub で削除する</a></div></div></div>`;
+  const close=()=>$('#layer').innerHTML='';
+  $('#bd').onclick=e=>{if(e.target.id==='bd')close()};$('#dlgNo').onclick=close;$('#dlgNo').focus();
+  $('#dlgYes').addEventListener('click',()=>setTimeout(close,300));
 });
 
 /* ---------- 小物 ---------- */
