@@ -3,5 +3,10 @@
   { "code": "6758.T", "name": "ソニーグループ" },
   { "code": "8306.T", "name": "三菱UFJ" },
   { "code": "9984.T", "name": "ソフトバンクグループ" },
-  { "code": "^N225", "name": "日経平均" }
+  { "code": "^N225", "name": "日経平均" },
+  { "code": "AAPL", "name": "アップル" },
+  { "code": "NVDA", "name": "エヌビディア" },
+  { "code": "MSFT", "name": "マイクロソフト" },
+  { "code": "GOOGL", "name": "アルファベット" },
+  { "code": "^GSPC", "name": "S&P500" }
 ]

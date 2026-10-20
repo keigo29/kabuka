@@ -19,6 +19,15 @@ def safe_name(code: str) -> str:
     return "".join(ch if ch.isalnum() or ch in ".-" else "_" for ch in code) + ".json"
 
 
+def guess_unit(code: str) -> str:
+    # tickers.json に "unit" がなければ、コードの形から決める
+    if code.startswith("^"):
+        return "ポイント"
+    if code.upper().endswith(".T"):
+        return "円"
+    return "ドル"
+
+
 def fetch_one(code: str):
     df = yf.download(code, period="5y", interval="1d", auto_adjust=True, progress=False)
     if df is None or df.empty:
@@ -39,6 +48,7 @@ def main() -> int:
     stocks = []
     for t in tickers:
         code, name = t["code"], t["name"]
+        unit = t.get("unit") or guess_unit(code)
         path = OUT / safe_name(code)
         try:
             data = fetch_one(code)
@@ -47,7 +57,7 @@ def main() -> int:
             data = None
         if data:
             path.write_text(
-                json.dumps({"code": code, "name": name, **data}, ensure_ascii=False, separators=(",", ":")),
+                json.dumps({"code": code, "name": name, "unit": unit, **data}, ensure_ascii=False, separators=(",", ":")),
                 encoding="utf-8",
             )
             print(f"更新: {code} {len(data['close'])}日分 {data['dates'][-1]}まで")
@@ -55,7 +65,7 @@ def main() -> int:
             print(f"前回のデータを使います: {code}", file=sys.stderr)
         else:
             continue
-        stocks.append({"code": code, "name": name, "file": path.name})
+        stocks.append({"code": code, "name": name, "unit": unit, "file": path.name})
 
     if not stocks:
         print("1銘柄も取れませんでした", file=sys.stderr)

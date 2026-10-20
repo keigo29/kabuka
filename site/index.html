@@ -401,6 +401,11 @@ const SAMPLES=()=>[
   sample('s3','サンプルC（架空・銀行）',7,1180,.0002,.013,-.04)
 ];
 
+/* ---------- 通貨の単位（円・ドル・指数のポイント） ---------- */
+function guessUnit(code){return /^\^/.test(code)?'ポイント':/\.T$/i.test(code)?'円':'ドル'}
+let UNIT='円';
+const setUnit=ds=>{UNIT=ds.unit||'円'};
+
 /* ---------- 株価の読み込み（GitHub Actions が毎日作る data/） ---------- */
 let STOCKS=[],SOURCE={live:false,updated:null};
 try{
@@ -409,7 +414,7 @@ try{
   const idx=await res.json();
   const got=await Promise.all(idx.stocks.map(async s=>{
     try{const r=await fetch('data/'+encodeURIComponent(s.file),{cache:'no-cache'});if(!r.ok)return null;const d=await r.json();
-      return d.close&&d.close.length>=MIN_DAYS?{id:d.code,name:d.name,dates:d.dates,close:d.close}:null}catch(e){return null}
+      return d.close&&d.close.length>=MIN_DAYS?{id:d.code,name:d.name,unit:d.unit||guessUnit(d.code),dates:d.dates,close:d.close}:null}catch(e){return null}
   }));
   STOCKS=got.filter(Boolean);
   if(STOCKS.length){SOURCE={live:true,updated:idx.updated}}
@@ -430,7 +435,7 @@ function indicators(c){
   }
   return{ma20,ma60,macd,sig,rsi,sd20,vol};
 }
-const f0=v=>v>=1000?Math.round(v).toLocaleString('ja-JP'):v.toLocaleString('ja-JP',{maximumFractionDigits:1});
+const f0=v=>UNIT==='ドル'?v.toLocaleString('ja-JP',{minimumFractionDigits:2,maximumFractionDigits:2}):v>=1000?Math.round(v).toLocaleString('ja-JP'):v.toLocaleString('ja-JP',{maximumFractionDigits:1});
 const RULES=[
   {key:'trend',name:'終値と20日平均',why:'終値が平均より上なら上がる流れ',
     sig:(c,I,t)=>c[t]>I.ma20[t]?1:c[t]<I.ma20[t]?-1:0,
@@ -562,8 +567,8 @@ function renderPredict(){
   $('#rgTitle').textContent=(h===1?'次の営業日':'5営業日後')+'の値動きの幅の目安';
   $('#rg1').textContent=`${f0(c[t]*Math.exp(-sd))}〜${f0(c[t]*Math.exp(sd))}`;
   $('#rg2').textContent=`${f0(c[t]*Math.exp(-2*sd))}〜${f0(c[t]*Math.exp(2*sd))}`;
-  $('#rgNote').textContent=`直近20日の日々の変動 ${(I.vol[t]*100).toFixed(2)}% × √${h} をもとにした幅です（単位は円）。向きは考えず、どれくらい動きうるかだけを表します。`;
-  $('#lastPrice').textContent=f0(c[t])+' 円';
+  $('#rgNote').textContent=`直近20日の日々の変動 ${(I.vol[t]*100).toFixed(2)}% × √${h} をもとにした幅です（単位は${UNIT}）。向きは考えず、どれくらい動きうるかだけを表します。`;
+  $('#lastPrice').textContent=f0(c[t])+' '+UNIT;
   const ch=c[t]/c[t-1]-1;$('#lastChg').className='tag '+(ch>=0?'ok':'danger');$('#lastChg').textContent=sgn(ch);
   $('#lastDate').textContent=jd(ds.dates[t])+' 時点';
   const k=state.range?Math.min(state.range,n):n,from=n-k;
@@ -606,10 +611,11 @@ function renderData(){
   $('#updAt').textContent=SOURCE.live?fmtUpd(SOURCE.updated)+' 更新':'';
   $('#dsList').innerHTML=STOCKS.map((d,i)=>`<div class="it"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${PALETTE[i%PALETTE.length]}"></span><span class="nm">${esc(d.name)}</span><span class="s num">${jd(d.dates[d.dates.length-1])} まで</span></div>`).join('');
   $('#srcNote').textContent=SOURCE.live
-    ?'平日の16時40分ごろに自動で最新の株価を取り込みます。銘柄を増やすときは、リポジトリの tickers.json に1行足してください（例：{"code": "6758.T", "name": "ソニーグループ"}）。'
+    ?'日本株は平日の16時40分ごろ、米国株は米国の市場が閉まったあとの朝7時ごろに、自動で最新の株価を取り込みます。銘柄を増やすときは、リポジトリの tickers.json に1行足してください（日本株は {"code": "6758.T", "name": "ソニーグループ"}、米国株は {"code": "AAPL", "name": "アップル"}）。'
     :'株価のデータが見つからないため、架空のサンプルを表示しています。GitHub Pages に置くと、毎日自動で取り込んだ実際の株価で動きます。';
 }
 function render(){
+  setUnit(cur());
   renderChips();
   document.querySelectorAll('.view').forEach(v=>{const on=v.id==='view-'+state.tab;v.hidden=!on;if(on)v.style.display='flex'});
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===state.tab));
@@ -624,21 +630,21 @@ const DEF_TPL=[
 {id:'t1',name:'買うか判断',body:`あなたは慎重な個人投資家の相談相手です。次のデータをもとに、{{銘柄名}}（{{コード}}）をいま買うべきか判断してください。
 
 ## 株価（{{日付}} 時点）
-- 終値：{{終値}} 円（前日比 {{前日比}}）
+- 終値：{{終値}} {{単位}}（前日比 {{前日比}}）
 - 1か月：{{1か月騰落}}／3か月：{{3か月騰落}}／1年：{{1年騰落}}
-- 1年の高値：{{1年高値}} 円／安値：{{1年安値}} 円
+- 1年の高値：{{1年高値}} {{単位}}／安値：{{1年安値}} {{単位}}
 
 ## テクニカル指標
-- 20日平均：{{20日平均}} 円／60日平均：{{60日平均}} 円
+- 20日平均：{{20日平均}} {{単位}}／60日平均：{{60日平均}} {{単位}}
 - RSI(14)：{{RSI}}
 - MACD：{{MACD}}／シグナル：{{シグナル}}
-- ボリンジャーバンド(±2σ)：{{ボリンジャー下}}〜{{ボリンジャー上}} 円
+- ボリンジャーバンド(±2σ)：{{ボリンジャー下}}〜{{ボリンジャー上}} {{単位}}
 
 ## 計算式による予測（{{予測日数}}）
 - スコア：{{スコア}}（{{予測}}）
 {{合図一覧}}
 - この計算式の過去の正解率：{{正解率}}（いつも「上がる」と答えた場合は {{いつも上がる正解率}}）
-- 値動きの幅の目安：約68%で {{値幅68}} 円、約95%で {{値幅95}} 円
+- 値動きの幅の目安：約68%で {{値幅68}} {{単位}}、約95%で {{値幅95}} {{単位}}
 
 ## 私の状況
 {{メモ}}
@@ -652,14 +658,14 @@ const DEF_TPL=[
 {id:'t2',name:'短期の売買タイミング',body:`{{銘柄名}}（{{コード}}）を数日〜2週間で売買するつもりです。テクニカルの面だけで、いつ買っていつ売るのがよいか考えてください。
 
 ## データ（{{日付}} 時点）
-- 終値：{{終値}} 円（前日比 {{前日比}}）
+- 終値：{{終値}} {{単位}}（前日比 {{前日比}}）
 - 直近20日の終値：{{直近20日終値}}
-- 20日平均：{{20日平均}} 円／60日平均：{{60日平均}} 円
+- 20日平均：{{20日平均}} {{単位}}／60日平均：{{60日平均}} {{単位}}
 - RSI(14)：{{RSI}}／MACD：{{MACD}}（シグナル {{シグナル}}）
-- ボリンジャーバンド：{{ボリンジャー下}}〜{{ボリンジャー上}} 円
+- ボリンジャーバンド：{{ボリンジャー下}}〜{{ボリンジャー上}} {{単位}}
 - 計算式の予測（{{予測日数}}）：スコア {{スコア}}（{{予測}}）、過去の正解率 {{正解率}}
 {{合図一覧}}
-- 値動きの幅の目安：約68%で {{値幅68}} 円
+- 値動きの幅の目安：約68%で {{値幅68}} {{単位}}
 
 ## 私の状況
 {{メモ}}
@@ -673,10 +679,10 @@ const DEF_TPL=[
 調べられる場合は、最新の業績・PER・PBR・配当利回り・直近の決算の内容とニュースを調べ、そのうえで判断してください。調べられない場合は、確かめるべき項目を挙げてください。
 
 ## 株価の状況（{{日付}} 時点）
-- 終値：{{終値}} 円
-- 1年：{{1年騰落}}（高値 {{1年高値}} 円／安値 {{1年安値}} 円）
+- 終値：{{終値}} {{単位}}
+- 1年：{{1年騰落}}（高値 {{1年高値}} {{単位}}／安値 {{1年安値}} {{単位}}）
 - 3か月：{{3か月騰落}}
-- 60日平均：{{60日平均}} 円
+- 60日平均：{{60日平均}} {{単位}}
 - RSI(14)：{{RSI}}
 
 ## 私の状況
@@ -688,17 +694,20 @@ const DEF_TPL=[
 3. 買う場合、一度に買うか、何回かに分けて買うか。分けるならその目安
 4. 持ったあと、売ることを考えるべき出来事`}
 ];
-const PH=['銘柄名','コード','日付','終値','前日比','1か月騰落','3か月騰落','1年騰落','1年高値','1年安値','20日平均','60日平均','RSI','MACD','シグナル','ボリンジャー上','ボリンジャー下','予測日数','スコア','予測','合図一覧','正解率','いつも上がる正解率','値幅68','値幅95','直近20日終値','メモ'];
+const PH=['銘柄名','コード','日付','終値','単位','前日比','1か月騰落','3か月騰落','1年騰落','1年高値','1年安値','20日平均','60日平均','RSI','MACD','シグナル','ボリンジャー上','ボリンジャー下','予測日数','スコア','予測','合図一覧','正解率','いつも上がる正解率','値幅68','値幅95','直近20日終値','メモ'];
 let tsaved={};try{tsaved=JSON.parse(localStorage.getItem(TPL_STORE)||'{}')||{}}catch(e){}
 const ai={
   tpls:Array.isArray(tsaved.tpls)&&tsaved.tpls.length?tsaved.tpls:DEF_TPL.map(t=>({...t})),
-  per:tsaved.per&&typeof tsaved.per==='object'?tsaved.per:{}
+  per:tsaved.per&&typeof tsaved.per==='object'?tsaved.per:{},
+  unitReady:true
 };
+if(!tsaved.unitReady&&Array.isArray(tsaved.tpls)){ai.tpls.forEach(t=>{t.body=t.body.replace(/(\{\{[^}]+\}\}) 円/g,'$1 {{単位}}')});try{localStorage.setItem(TPL_STORE,JSON.stringify(ai))}catch(e){}}
 function tplPersist(){try{localStorage.setItem(TPL_STORE,JSON.stringify(ai))}catch(e){}}
 const perOf=id=>ai.per[id]||(ai.per[id]={tpl:ai.tpls[0].id,memo:''});
 const tplOf=id=>ai.tpls.find(t=>t.id===perOf(id).tpl)||ai.tpls[0];
 
 function promptValues(ds){
+  setUnit(ds);
   const c=ds.close,n=c.length,t=n-1,h=state.h,I=ind(ds),w=liveW(ds,h),sc=scoreAt(ds,t,w),bt=backtest(ds,h,state.fee);
   const back=k=>{const i=Math.max(0,t-k);return sgn(c[t]/c[i]-1)};
   const yr=c.slice(Math.max(0,n-250)),sd=I.vol[t]*Math.sqrt(h);
@@ -707,7 +716,7 @@ function promptValues(ds){
   const last20=c.slice(-20).map((v,i)=>ds.dates[n-20+i].slice(5).replace('-','/')+' '+f0(v)).join('、');
   const memo=(perOf(ds.id).memo||'').trim();
   return{
-    '銘柄名':ds.name,'コード':SOURCE.live?ds.id:'サンプル','日付':jd(ds.dates[t]),
+    '銘柄名':ds.name,'単位':UNIT,'コード':SOURCE.live?ds.id:'サンプル','日付':jd(ds.dates[t]),
     '終値':f0(c[t]),'前日比':sgn(c[t]/c[t-1]-1),'1か月騰落':back(21),'3か月騰落':back(63),'1年騰落':back(250),
     '1年高値':f0(Math.max(...yr)),'1年安値':f0(Math.min(...yr)),
     '20日平均':f0(I.ma20[t]),'60日平均':f0(I.ma60[t]),'RSI':I.rsi[t].toFixed(1),'MACD':I.macd[t].toFixed(2),'シグナル':I.sig[t].toFixed(2),
@@ -733,7 +742,7 @@ function renderAI(){
   updatePrompt();
 }
 function editTpl(id){
-  const isNew=!id,t=isNew?{id:'t'+Date.now(),name:'',body:'{{銘柄名}}（{{コード}}）について、次のデータから判断してください。\n\n- 終値：{{終値}} 円\n- 計算式の予測：{{スコア}}（{{予測}}）\n\n## 私の状況\n{{メモ}}\n'}:ai.tpls.find(x=>x.id===id);
+  const isNew=!id,t=isNew?{id:'t'+Date.now(),name:'',body:'{{銘柄名}}（{{コード}}）について、次のデータから判断してください。\n\n- 終値：{{終値}} {{単位}}\n- 計算式の予測：{{スコア}}（{{予測}}）\n\n## 私の状況\n{{メモ}}\n'}:ai.tpls.find(x=>x.id===id);
   $('#layer').innerHTML=`<div class="backdrop" id="bd"><div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="dlgT">
     <h3 id="dlgT">${isNew?'テンプレートを追加':'テンプレートを編集'}</h3>
     <div class="field"><label class="label" for="tName">名前</label><input type="text" id="tName" value="${esc(t.name)}" placeholder="例：決算前の確認"></div>
